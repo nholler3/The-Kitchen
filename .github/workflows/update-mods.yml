@@ -13,19 +13,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Python deps
-        run: pip3 install --upgrade requests
-
       - name: Download latest stable mods for 1.20.1 Forge
         env:
           CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
         run: |
-          python3 scripts/download_mods.py \
+          python3 -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install requests
+          python scripts/download_mods.py \
             --in manifest.json \
             --out ~/minecraft/assets/stage \
             --mc 1.20.1 \
             --loader Forge
-
       - name: Detect changes & atomic swap stage -> live
         id: swap
         shell: bash
