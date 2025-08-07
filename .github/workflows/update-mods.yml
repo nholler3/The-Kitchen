@@ -50,4 +50,6 @@ jobs:
     runs-on: [self-hosted, control-plane]  # runner that has kubectl
     steps:
       - name: Restart Minecraft deployment
+        env:
+          KUBECONFIG: /home/nholler/.kube/minecraft-ci.conf
         run: kubectl -n minecraft rollout restart deploy/minecraft-neoforge
