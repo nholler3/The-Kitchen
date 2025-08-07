@@ -1,0 +1,53 @@
+name: Update Minecraft Mods
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - manifest.json
+      - scripts/download_mods.py
+
+jobs:
+  fetch-to-worker1:
+    runs-on: [self-hosted, worker1]  # your runner label on the node
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python deps
+        run: pip install --upgrade requests
+
+      - name: Download latest stable mods for 1.20.1 Forge
+        env:
+          CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+        run: |
+          python3 scripts/download_mods.py \
+            --in manifest.json \
+            --out ~/minecraft/assets/stage \
+            --mc 1.20.1 \
+            --loader Forge
+
+      - name: Detect changes & atomic swap stage -> live
+        id: swap
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          new_list=$(ls -1 ~/minecraft/assets/stage/*.jar | xargs -n1 basename | sort || true)
+          old_list=$(ls -1 ~/minecraft/assets/live/*.jar  | xargs -n1 basename | sort || true)
+          if diff -q <(echo "$new_list") <(echo "$old_list") >/dev/null 2>&1; then
+            echo "changed=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          rm -rf ~/minecraft/assets/prev
+          mv ~/minecraft/assets/live ~/minecraft/assets/prev || true
+          mv ~/minecraft/assets/stage ~/minecraft/assets/live
+          mkdir -p ~/minecraft/assets/stage
+          echo "changed=1" >> $GITHUB_OUTPUT
+
+  restart-server:
+    needs: fetch-to-worker1
+    if: needs.fetch-to-worker1.outputs.changed == '1'
+    runs-on: [self-hosted, control-plane]  # runner that has kubectl
+    steps:
+      - name: Restart Minecraft deployment
+        run: kubectl -n minecraft rollout restart deploy/minecraft-neoforge
