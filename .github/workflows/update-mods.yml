@@ -17,6 +17,14 @@ jobs:
         env:
           CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
         run: |
+          # Does the env var exist (don’t print the key, just its length)?
+          [ -n "$CURSEFORGE_API_KEY" ] && echo "KEY_LEN: $(printf %s "$CURSEFORGE_API_KEY" | wc -c)" || echo "KEY MISSING"
+
+          # Does a simple API call return 200?
+          curl -s -o /dev/null -w "HTTP:%{http_code}\n" \
+          -H "x-api-key: $CURSEFORGE_API_KEY" \
+          "https://api.curseforge.com/v1/mods/853794/files?pageSize=1"
+          
           python3 -m venv .venv
           . .venv/bin/activate
           python -m pip install --upgrade pip
@@ -26,6 +34,7 @@ jobs:
             --out ~/minecraft/assets/stage \
             --mc 1.20.1 \
             --loader Forge
+            
       - name: Detect changes & atomic swap stage -> live
         id: swap
         shell: bash
